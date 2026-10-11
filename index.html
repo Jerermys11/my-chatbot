@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0B0F19">
+  <title>Chatbot</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+
+    <header class="topbar">
+      <div class="brand">
+        <span id="botEmoji" class="emoji"></span>
+        <div>
+          <h1 id="botName"></h1>
+          <p id="botTagline"></p>
+        </div>
+      </div>
+      <div class="actions">
+        <button id="keyBtn" class="btn" type="button">API key</button>
+        <button id="newChatBtn" class="btn" type="button">New chat</button>
+      </div>
+    </header>
+
+    <main id="chat" class="chat" aria-live="polite"></main>
+
+    <form id="composer" class="composer">
+      <textarea id="input" rows="1" placeholder="Type your message..." aria-label="Your message"></textarea>
+      <button id="sendBtn" class="send" type="submit" aria-label="Send message">&#10148;</button>
+    </form>
+
+  </div>
+
+  <!-- API key pop-up -->
+  <div id="keyModal" class="modal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="keyTitle">
+      <h2 id="keyTitle">Your Gemini API key</h2>
+      <p class="modal-note">
+        Paste your key below. It stays in your browser and is only sent to Google.
+        Get a free key at <strong>aistudio.google.com/apikey</strong>.
+      </p>
+      <p id="keyMessage" class="modal-message" hidden></p>
+      <input id="keyInput" type="password" placeholder="Paste key here" autocomplete="off" spellcheck="false">
+      <label class="remember">
+        <input id="rememberBox" type="checkbox">
+        Remember on this device
+      </label>
+      <div class="modal-buttons">
+        <button id="keyRemove" class="btn-light" type="button">Remove key</button>
+        <button id="keyCancel" class="btn-light" type="button">Cancel</button>
+        <button id="keySave" class="btn-main" type="button">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
