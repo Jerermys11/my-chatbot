@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0B0F19">
   <title>Chatbot</title>
+
+  <!-- Fonts: Hanken Grotesk (buttons, your messages) and Source Serif 4 (bot replies) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Source+Serif+4:wght@400;600&display=swap" rel="stylesheet">
+
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -27,8 +33,12 @@
     <main id="chat" class="chat" aria-live="polite"></main>
 
     <form id="composer" class="composer">
-      <textarea id="input" rows="1" placeholder="Type your message..." aria-label="Your message"></textarea>
-      <button id="sendBtn" class="send" type="submit" aria-label="Send message">&#10148;</button>
+      <textarea id="input" rows="1" placeholder="Ask a question or type your answer" aria-label="Your message"></textarea>
+      <button id="sendBtn" class="send" type="submit" aria-label="Send message">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+          <path d="M12 19V6M6 12l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
     </form>
 
   </div>
