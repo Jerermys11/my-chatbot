@@ -56,5 +56,5 @@ Other guidelines:
 
   // Colors. Use hex codes (look up "color picker" to find others).
   themeColor: "#0B0F19",   // Midnight black: used for the top bar
-  accentColor: "#5B8DEF"   // Buttons and your chat bubbles
+   accentColor: "#E4B65C"   // Brass gold: buttons and your chat bubbles
 };
