@@ -15,7 +15,7 @@ const BOT_CONFIG = {
   emoji: "🎓",
 
   // A short line shown under the name.
-  tagline: "Your study partner for risk management and any other class",
+  tagline: "Your adaptive study partner for risk management and any other class",
 
   // The first message the bot shows when a chat starts.
   welcomeMessage:
