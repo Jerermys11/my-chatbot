@@ -24,9 +24,9 @@ const BOT_CONFIG = {
   // The buttons shown under the welcome message.
   // Add, remove, or change lines. Each one is sent to the bot when tapped.
   starterQuestions: [
-    "What risks do we face? (Identification and categorization of pure vs. speculative risks)",
-    "How can we manage those risks? (Exploration of risk control and risk financing techniques)",
-    "How do we pay for losses when they occur? (Analysis of insurance, retention, and alternative risk transfer methods)"
+    "Help me with MIST 2090",
+    "Give me some studying tips",
+    "How should I split up my studying time for these assignments?"
   ],
 
   // The bot's rules. This text is sent to the AI with every message.
