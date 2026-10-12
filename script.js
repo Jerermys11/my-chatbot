@@ -158,12 +158,40 @@ function formatText(raw) {
   return html;
 }
 
+// ---------- NEW: Downloading a reply ----------
+// Saves one bot reply as a plain text (.txt) file on the person's device.
+function downloadReply(replyText) {
+  // Remove the ** bold markers so the saved file is clean to read.
+  const cleanText = replyText.replace(/\*\*(.+?)\*\*/g, "$1");
+
+  // Build a file name like: rmibot-reply-2026-10-12-1430.txt
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  const stamp =
+    now.getFullYear() + "-" + pad(now.getMonth() + 1) + "-" + pad(now.getDate()) +
+    "-" + pad(now.getHours()) + pad(now.getMinutes());
+  const botName = BOT_CONFIG.name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  const fileName = botName + "-reply-" + stamp + ".txt";
+
+  // Turn the text into a file and "click" a hidden download link for it.
+  const blob = new Blob([cleanText], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 // ---------- Showing messages ----------
 function scrollToBottom() {
   chatEl.scrollTop = chatEl.scrollHeight;
 }
 
-function addMessage(who, text, isError) {
+// NEW: the 4th option, canDownload, adds a Download button under a bot reply.
+function addMessage(who, text, isError, canDownload) {
   const div = document.createElement("div");
   div.className = "msg " + who + (isError ? " error" : "");
   if (who === "user") {
@@ -171,6 +199,17 @@ function addMessage(who, text, isError) {
   } else {
     div.innerHTML = formatText(text); // escaped first, then formatted
   }
+
+  if (canDownload) {
+    const dl = document.createElement("button");
+    dl.type = "button";
+    dl.className = "dl-btn";
+    dl.textContent = "\u2B07 Download";
+    dl.setAttribute("aria-label", "Download this reply as a text file");
+    dl.addEventListener("click", () => downloadReply(text));
+    div.appendChild(dl);
+  }
+
   chatEl.appendChild(div);
   scrollToBottom();
   return div;
@@ -314,7 +353,7 @@ async function sendMessage(rawText) {
     const reply = await askGemini(key);
     typing.remove();
     history.push({ role: "model", parts: [{ text: reply }] });
-    addMessage("bot", reply);
+    addMessage("bot", reply, false, true);   // NEW: true = show Download button
   } catch (err) {
     typing.remove();
     history.pop();            // forget the unanswered message
