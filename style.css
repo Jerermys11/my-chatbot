@@ -215,3 +215,19 @@ body {
 }
 .btn-main { background: var(--accent); color: #ffffff; border: none; }
 .btn-light { background: transparent; color: var(--text); border: 1px solid var(--border); }
+/* ---------- Download button under bot replies ---------- */
+.dl-btn {
+  display: inline-block;
+  margin-top: 8px;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.dl-btn:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
