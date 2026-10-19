@@ -423,3 +423,47 @@ body {
   .msg.user { max-width: 88%; }
   .composer { padding: 10px 12px 14px; }
 }
+/* =====================================================================
+   PART 3: web sources + Google Search suggestions
+   ===================================================================== */
+.sources {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  font-family: var(--ui);
+}
+.sources-label {
+  margin-right: 2px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.source-link {
+  max-width: 100%;
+  padding: 3px 10px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  transition: border-color 0.15s;
+}
+.source-link:hover { border-color: var(--accent); }
+
+/* Google's required "search suggestions" box (shown only after a Google search) */
+.search-suggest {
+  display: block;
+  width: 100%;
+  height: 56px;
+  margin-top: 10px;
+  border: 0;
+  border-radius: 12px;
+}
