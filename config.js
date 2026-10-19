@@ -58,3 +58,16 @@ Other guidelines:
   themeColor: "#0B0F19",   // Midnight black: used for the top bar
    accentColor: "#E4B65C"   // Brass gold: buttons and your chat bubbles
 };
+  // ---- Web access ----
+  enableUrlReading: true,     // lets the bot read web pages (links you paste, or the sites below)
+  enableGoogleSearch: true,   // lets the bot search Google for current information
+
+  // Sites the bot should read when your message mentions one of the keywords.
+  // To add a site, copy the whole { ... }, line and change the text.
+  usefulWebsites: [
+    {
+      name: "Don Quijote (store information)",
+      url: "https://www.donki.com/en/",
+      keywords: ["don quijote", "donki", "don quixote", "donkihote"]
+    }
+  ],
