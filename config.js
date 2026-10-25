@@ -90,6 +90,33 @@ Other guidelines:
     }
   ],
 
+  // ---- Your own notes (the bot answers from them) ----
+
+  // true = the bot looks through your notes file before answering.
+  // false = turn this feature off completely.
+  useKnowledge: true,
+
+  // The name of your notes file. It must sit next to index.html.
+  // Start every note with a line like:  ## Note title
+  knowledgeFile: "knowledge.md",
+
+  // How the bot finds the right notes:
+  //   "meaning"  = finds notes with a similar MEANING to the question
+  //                (needs your API key; falls back to keywords if it fails)
+  //   "keywords" = finds notes that share WORDS with the question
+  searchMethod: "meaning",
+
+  // How many notes to hand to the bot with each question (try 2 to 5).
+  topK: 3,
+
+  // The Google model that turns notes and questions into "meaning numbers".
+  // If you change this, your notes are re-processed automatically.
+  embeddingModel: "gemini-embedding-2",
+
+  // Extra rules added to the bot's instructions whenever it receives notes.
+  knowledgeRules:
+    `You will receive NOTES from my knowledge file along with each question. If the notes answer the question, base your answer on them and cite the note numbers like [1]. If they don't, begin with 'I couldn't find that in my notes.' Never invent facts, dates, rules or policies that are not in the notes.`,
+
   // Colors. Use hex codes (look up "color picker" to find others).
   themeColor: "#0B0F19",   // Midnight black: used for the top bar
   accentColor: "#E4B65C"   // Brass gold: buttons and your chat bubbles
