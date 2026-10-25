@@ -12,36 +12,86 @@
   <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Source+Serif+4:wght@400;600&display=swap" rel="stylesheet">
 
   <link rel="stylesheet" href="style.css">
+
+  <!-- Shows a red message at the top of the page if anything breaks -->
+  <script>
+    function showPageError(message) {
+      var box = document.createElement("div");
+      box.style.cssText =
+        "position:fixed;left:0;right:0;top:0;padding:12px 16px;background:#b0283a;" +
+        "color:#fff;font:14px/1.4 sans-serif;z-index:99;white-space:pre-wrap;";
+      box.textContent = "Page error: " + message;
+      (document.body || document.documentElement).appendChild(box);
+    }
+    window.addEventListener("error", function (e) {
+      var file = (e.filename || "").split("/").pop();
+      showPageError(e.message + (file ? "  [" + file + ", line " + e.lineno + "]" : ""));
+    });
+    window.addEventListener("unhandledrejection", function (e) {
+      showPageError(String(e.reason && e.reason.message ? e.reason.message : e.reason));
+    });
+  </script>
 </head>
 <body>
   <div class="app">
 
-    <header class="topbar">
-      <div class="brand">
-        <span id="botEmoji" class="emoji"></span>
-        <div>
-          <h1 id="botName"></h1>
-          <p id="botTagline"></p>
+    <!-- Chat history panel -->
+    <aside id="sidebar" class="sidebar" aria-label="Chat history">
+      <div class="sidebar-head">
+        <h2>Your chats</h2>
+        <button id="sidebarClose" class="icon-btn sidebar-close" type="button" aria-label="Close chat list">&#10005;</button>
+      </div>
+      <ul id="chatList" class="chat-list"></ul>
+    </aside>
+    <div id="scrim" class="scrim" hidden></div>
+
+    <!-- Main chat area -->
+    <section id="main" class="main">
+
+      <header class="topbar">
+        <div class="brand">
+          <button id="menuBtn" class="icon-btn menu-btn" type="button" aria-label="Open chat list">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+              <path d="M4 6h16M4 12h16M4 18h16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+            </svg>
+          </button>
+          <span id="botEmoji" class="emoji"></span>
+          <div>
+            <h1 id="botName"></h1>
+            <p id="botTagline"></p>
+          </div>
         </div>
-      </div>
-      <div class="actions">
-        <button id="keyBtn" class="btn" type="button">API key</button>
-        <button id="newChatBtn" class="btn" type="button">New chat</button>
-      </div>
-    </header>
+        <div class="actions">
+          <button id="keyBtn" class="btn" type="button">API key</button>
+          <button id="newChatBtn" class="btn" type="button">New chat</button>
+        </div>
+      </header>
 
-    <main id="chat" class="chat" aria-live="polite"></main>
+      <main id="chat" class="chat" aria-live="polite"></main>
 
-    <form id="composer" class="composer">
-      <textarea id="input" rows="1" placeholder="Ask a question or type your answer" aria-label="Your message"></textarea>
-      <button id="sendBtn" class="send" type="submit" aria-label="Send message">
-        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-          <path d="M12 19V6M6 12l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </button>
-    </form>
+      <!-- Files waiting to be sent -->
+      <div id="attachments" class="attachments" hidden></div>
 
+      <form id="composer" class="composer">
+        <button id="attachBtn" class="attach-btn" type="button" aria-label="Attach study files" title="Attach study files (PDF, images, text)">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <input id="fileInput" type="file" multiple hidden
+               accept=".pdf,.txt,.md,.markdown,.csv,.tsv,.json,.html,.png,.jpg,.jpeg,.webp">
+        <textarea id="input" rows="1" placeholder="Ask a question or type your answer" aria-label="Your message"></textarea>
+        <button id="sendBtn" class="send" type="submit" aria-label="Send message">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path d="M12 19V6M6 12l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </form>
+
+    </section>
   </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
   <!-- API key pop-up -->
   <div id="keyModal" class="modal" hidden>
