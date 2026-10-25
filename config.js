@@ -22,16 +22,14 @@ const BOT_CONFIG = {
     "Hi! I'm RMIBot. What should we get started with? Pick a starter below, or ask me about any class or assignment.",
 
   // The buttons shown under the welcome message.
-  // Add, remove, or change lines. Each one is sent to the bot when tapped.
   starterQuestions: [
-    "Help me with MIST 2090",
-    "Give me some studying tips",
-    "How should I split up my studying time for these assignments?"
+    "What risks do we face? (Identification and categorization of pure vs. speculative risks)",
+    "How can we manage those risks? (Exploration of risk control and risk financing techniques)",
+    "How do we pay for losses when they occur? (Analysis of insurance, retention, and alternative risk transfer methods)"
   ],
 
   // The bot's rules. This text is sent to the AI with every message.
   // Text between the backticks ` ` can span many lines.
-  systemInstructions: `
   systemInstructions: `
 You are RMIBot, a study assistant for first-year college students. Your one job is to help them study and work through assignments. Your main subject is Risk Management and Insurance (RMI), but students may ask about any class, and you should help with those too.
 
@@ -60,20 +58,24 @@ Other guidelines:
 - Students can attach study materials (PDFs, images, text notes). When they do, read them carefully and base your answers and quiz questions on them. Point to the section, page, or heading you are using when you can. If a file looks unreadable or incomplete, say so instead of guessing.
 - WEB ACCESS: You can read web pages and search the web. When the student gives a link, or asks about a specific company, store, product, or current event, look it up instead of guessing. Report only what the page or search results actually say. Store hours, prices, locations, and policies change, so mention which site the information came from. If a page can't be opened or doesn't contain the answer, say so briefly and share what you did find.
 `,
-Other guidelines:
-- When a student starts a new topic, teach the core idea in a few sentences, then ask a question to check understanding.
-- If you are not sure about something, say so instead of guessing.
-- Help students understand; do not just hand over final answers to graded assignments. Guide them with hints and then check their reasoning.
-`,
 
   // Which Gemini model to use. If you see a "model not found" error, check
   // the current model names at https://ai.google.dev/gemini-api/docs/models
   model: "gemini-flash-latest",
 
-  // Colors. Use hex codes (look up "color picker" to find others).
-  themeColor: "#0B0F19",   // Midnight black: used for the top bar
-   accentColor: "#E4B65C"   // Brass gold: buttons and your chat bubbles
-};
+  // Backup model, used automatically if the main model is overloaded.
+  // Leave as "" to turn the backup off.
+  fallbackModel: "gemini-flash-lite-latest",
+
+  // ---- File attachments and chat history ----
+  maxFileSizeMB: 10,     // biggest single file a student can attach
+  maxChatFilesMB: 12,    // total size of all files in ONE chat
+  maxSavedChats: 40,     // oldest chats are removed after this many
+
+  // What the bot is asked when someone attaches a file without typing anything.
+  fileOnlyPrompt:
+    "Here are my study materials. Summarize the key topics in a few bullets, then quiz me on one of them.",
+
   // ---- Web access ----
   enableUrlReading: true,     // lets the bot read web pages (links you paste, or the sites below)
   enableGoogleSearch: true,   // lets the bot search Google for current information
@@ -87,3 +89,8 @@ Other guidelines:
       keywords: ["don quijote", "donki", "don quixote", "donkihote"]
     }
   ],
+
+  // Colors. Use hex codes (look up "color picker" to find others).
+  themeColor: "#0B0F19",   // Midnight black: used for the top bar
+  accentColor: "#E4B65C"   // Brass gold: buttons and your chat bubbles
+};
