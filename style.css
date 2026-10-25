@@ -1,5 +1,5 @@
 /* =====================================================================
-   RMIBot look and feel
+   RMIBot look and feel (complete file)
    Palette: midnight base, brass (gold) accent, chalk text.
    Fonts:   Hanken Grotesk for the interface, Source Serif 4 for bot
             replies (reads like a textbook).
@@ -62,16 +62,27 @@ body {
 ::selection { background: var(--accent); color: var(--on-accent); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
+/* ---------- Page layout: chat list on the left, chat on the right ---------- */
 .app {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   height: 100vh;
   height: 100dvh;
-  max-width: 840px;
+  max-width: 1120px;
   margin: 0 auto;
   background: var(--surface);
   border-left: 1px solid var(--line);
   border-right: 1px solid var(--line);
+}
+
+.main {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
 }
 
 /* ---------- Top bar ---------- */
@@ -124,6 +135,21 @@ body {
 .btn:hover { border-color: var(--accent); color: var(--accent); }
 .btn:active { background: rgba(255, 255, 255, 0.14); }
 
+/* ---------- Small square icon buttons ---------- */
+.icon-btn {
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  color: #ffffff;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.icon-btn:hover { border-color: var(--accent); color: var(--accent); }
+.menu-btn { display: none; }
+.sidebar-close { display: none; }
+
 /* ---------- Chat area (graph-paper background) ---------- */
 .chat {
   flex: 1;
@@ -146,6 +172,7 @@ body {
   animation: rise 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
   overflow-wrap: anywhere;
 }
+.msg.instant { animation: none; }
 
 /* Bot replies: textbook-style panel with a gold edge */
 .msg.bot {
@@ -186,6 +213,17 @@ body {
 .msg li::marker { color: var(--accent); }
 .msg strong { font-weight: 600; }
 
+/* File names shown inside your gold message bubble */
+.msg-files { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; white-space: normal; }
+.file-pill {
+  padding: 3px 10px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: rgba(27, 20, 5, 0.15);
+  border-radius: 999px;
+  overflow-wrap: anywhere;
+}
+
 /* ---------- Grade stamp ---------- */
 .grade {
   display: flex;
@@ -222,7 +260,7 @@ body {
 .typing span:nth-child(2) { animation-delay: 0.14s; }
 .typing span:nth-child(3) { animation-delay: 0.28s; }
 
-/* ---------- Download button ---------- */
+/* ---------- Download and "Try again" buttons ---------- */
 .dl-btn {
   display: inline-block;
   margin-top: 10px;
@@ -238,6 +276,50 @@ body {
   transition: color 0.15s, border-color 0.15s;
 }
 .dl-btn:hover { color: var(--text); border-color: var(--accent); }
+.retry-btn { margin-left: 8px; border-color: var(--accent); color: var(--text); }
+
+/* ---------- Web sources + Google Search suggestions ---------- */
+.sources {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  font-family: var(--ui);
+}
+.sources-label {
+  margin-right: 2px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.source-link {
+  max-width: 100%;
+  padding: 3px 10px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  transition: border-color 0.15s;
+}
+.source-link:hover { border-color: var(--accent); }
+
+/* Google's required "search suggestions" box (shown only after a Google search) */
+.search-suggest {
+  display: block;
+  width: 100%;
+  height: 56px;
+  margin-top: 10px;
+  border: 0;
+  border-radius: 12px;
+}
 
 /* ---------- Starter questions ---------- */
 .starters {
@@ -286,6 +368,42 @@ body {
 .starter-title { font-size: 1rem; font-weight: 600; line-height: 1.35; }
 .starter-detail { font-size: 0.87rem; color: var(--muted); line-height: 1.4; }
 
+/* ---------- Files waiting to be sent ---------- */
+.attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 10px 16px 0;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+}
+.attachments:not([hidden]) + .composer { border-top: none; padding-top: 10px; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 5px 6px 5px 12px;
+  font-size: 0.82rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  animation: pop 0.2s both;
+}
+.chip-name { max-width: 200px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chip-size { color: var(--muted); }
+.chip-x {
+  width: 22px;
+  height: 22px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.chip-x:hover { color: var(--wrong); }
+
 /* ---------- Message box ---------- */
 .composer {
   display: flex;
@@ -315,6 +433,20 @@ body {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(228, 182, 92, 0.25);
 }
+.attach-btn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.attach-btn:hover { color: var(--text); border-color: var(--accent); }
 .send {
   flex: none;
   display: grid;
@@ -331,6 +463,116 @@ body {
 .send:hover { transform: scale(1.07); }
 .send:active { transform: scale(0.92); }
 .send:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+/* ---------- Drag-and-drop highlight ---------- */
+.main.dragging::after {
+  content: "Drop files to attach";
+  position: absolute;
+  inset: 10px;
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 1.05rem;
+  background: rgba(11, 15, 25, 0.8);
+  border: 2px dashed var(--accent);
+  border-radius: 16px;
+  z-index: 5;
+  pointer-events: none;
+}
+
+/* ---------- Chat history panel (left side) ---------- */
+.sidebar {
+  flex: none;
+  width: 270px;
+  display: flex;
+  flex-direction: column;
+  background: var(--theme);
+  color: #e8ebf3;
+  border-right: 1px solid rgba(228, 182, 92, 0.25);
+}
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 16px 8px;
+}
+.sidebar-head h2 {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.chat-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px 8px 14px;
+  flex: 1;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+.chat-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 2px;
+  border-radius: 10px;
+}
+.chat-item:hover { background: rgba(255, 255, 255, 0.06); }
+.chat-item.active {
+  background: rgba(228, 182, 92, 0.12);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.chat-open {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 8px 10px 14px;
+  text-align: left;
+  font-family: var(--ui);
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.chat-title {
+  font-size: 0.92rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chat-meta { font-size: 0.75rem; opacity: 0.6; }
+.chat-item.unread .chat-title::after { content: " \25CF"; color: var(--accent); font-size: 0.7em; }
+.chat-item.pending .chat-meta { color: var(--accent); opacity: 1; animation: pulse 1.2s infinite ease-in-out; }
+.chat-act {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  margin-right: 2px;
+  color: inherit;
+  font-size: 0.85rem;
+  background: none;
+  border: 0;
+  border-radius: 8px;
+  opacity: 0;
+  cursor: pointer;
+}
+.chat-item:hover .chat-act,
+.chat-item:focus-within .chat-act,
+.chat-item.active .chat-act { opacity: 0.6; }
+.chat-act:hover { opacity: 1 !important; background: rgba(255, 255, 255, 0.12); }
+@media (hover: none) { .chat-act { opacity: 0.6; } }
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(3, 5, 10, 0.6);
+  z-index: 15;
+}
 
 /* ---------- API key pop-up ---------- */
 .modal {
@@ -387,6 +629,26 @@ body {
 .btn-light { background: transparent; color: var(--text); border: 1px solid var(--line); }
 .btn-light:hover { border-color: var(--accent); }
 
+/* ---------- Small message banner ---------- */
+.toast {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 96px;
+  width: fit-content;
+  max-width: min(92vw, 460px);
+  margin: 0 auto;
+  padding: 10px 16px;
+  font-size: 0.88rem;
+  line-height: 1.4;
+  color: #ffffff;
+  background: var(--theme);
+  border: 1px solid rgba(228, 182, 92, 0.55);
+  border-radius: 12px;
+  z-index: 30;
+  animation: rise 0.25s both;
+}
+
 /* ---------- Animations ---------- */
 @keyframes rise {
   from { opacity: 0; transform: translateY(10px); }
@@ -403,6 +665,10 @@ body {
 @keyframes pop {
   from { opacity: 0; transform: scale(0.94); }
   to   { opacity: 1; transform: none; }
+}
+@keyframes pulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 1; }
 }
 
 /* Respect people who turn animations off in their device settings */
@@ -423,47 +689,20 @@ body {
   .msg.user { max-width: 88%; }
   .composer { padding: 10px 12px 14px; }
 }
-/* =====================================================================
-   PART 3: web sources + Google Search suggestions
-   ===================================================================== */
-.sources {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  margin-top: 12px;
-  font-family: var(--ui);
-}
-.sources-label {
-  margin-right: 2px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-.source-link {
-  max-width: 100%;
-  padding: 3px 10px;
-  font-size: 0.78rem;
-  font-weight: 500;
-  color: var(--text);
-  text-decoration: none;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  transition: border-color 0.15s;
-}
-.source-link:hover { border-color: var(--accent); }
 
-/* Google's required "search suggestions" box (shown only after a Google search) */
-.search-suggest {
-  display: block;
-  width: 100%;
-  height: 56px;
-  margin-top: 10px;
-  border: 0;
-  border-radius: 12px;
+/* ---------- Phones and narrow windows: chat list becomes a slide-out drawer ---------- */
+@media (max-width: 760px) {
+  .menu-btn { display: grid; }
+  .sidebar-close { display: grid; }
+  .sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: min(86vw, 300px);
+    transform: translateX(-102%);
+    transition: transform 0.25s ease;
+    z-index: 20;
+  }
+  .sidebar.open { transform: none; box-shadow: 0 0 40px rgba(0, 0, 0, 0.5); }
 }
