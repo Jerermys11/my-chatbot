@@ -27,6 +27,7 @@ const attachBtn = document.getElementById("attachBtn");
 const fileInput = document.getElementById("fileInput");
 const attachmentsEl = document.getElementById("attachments");
 const toastEl = document.getElementById("toast");
+const kbStatusEl = document.getElementById("kbStatus");
 
 const KEY_NAME = "gemini_api_key";
 const STORE_KEY = "rmibot_chats_v1";
@@ -66,6 +67,10 @@ function formatSize(bytes) {
 function makeTitle(text) {
   const clean = text.replace(/\s+/g, " ").trim();
   return clean.length > 40 ? clean.slice(0, 40) + "\u2026" : clean || "New chat";
+}
+
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 let toastTimer = null;
@@ -140,11 +145,13 @@ keySave.addEventListener("click", () => {
   saveKey(key, rememberBox.checked);
   closeModal();
   inputEl.focus();
+  initKnowledge(true);   // a key is now available, so prepare "meaning search"
 });
 
 keyRemove.addEventListener("click", () => {
   removeKey();
   closeModal();
+  renderKbStatus();
 });
 
 // ---------- Saved files (stored in the browser's IndexedDB) ----------
@@ -385,7 +392,8 @@ function scrollToBottom() {
 // who = "bot" or "user". opts can include:
 //   instant (no animation), files (names to show), download (add Download button),
 //   isError (red edge), retry (function: adds a "Try again" button),
-//   sources (list of web links used), searchHtml (Google's search suggestions box)
+//   kb (the notes used for this answer), sources (web links used),
+//   searchHtml (Google's search suggestions box)
 function addBubble(who, text, opts) {
   opts = opts || {};
   const div = document.createElement("div");
@@ -414,13 +422,51 @@ function addBubble(who, text, opts) {
     div.innerHTML = formatText(text);   // escaped first, then formatted
   }
 
+  // "Sources": the notes from your knowledge file that this answer was based on
+  if (opts.kb && opts.kb.notes && opts.kb.notes.length) {
+    const details = document.createElement("details");
+    details.className = "kb-sources";
+
+    const count = opts.kb.notes.length;
+    const summary = document.createElement("summary");
+    summary.textContent =
+      "Sources (" + count + (count === 1 ? " note" : " notes") + " \u00B7 " +
+      (opts.kb.method === "meaning" ? "meaning" : "keyword") + " search)";
+    details.appendChild(summary);
+
+    opts.kb.notes.forEach((n, i) => {
+      const item = document.createElement("div");
+      item.className = "kb-item";
+
+      const head = document.createElement("div");
+      head.className = "kb-head";
+      const title = document.createElement("span");
+      title.className = "kb-title";
+      title.textContent = "[" + (i + 1) + "] " + n.title;
+      const score = document.createElement("span");
+      score.className = "kb-score";
+      score.textContent = "score " + Number(n.score).toFixed(2);
+      head.appendChild(title);
+      head.appendChild(score);
+
+      const preview = document.createElement("p");
+      preview.className = "kb-preview";
+      preview.textContent = n.preview;
+
+      item.appendChild(head);
+      item.appendChild(preview);
+      details.appendChild(item);
+    });
+    div.appendChild(details);
+  }
+
   // Links to the web pages the bot used
   if (opts.sources && opts.sources.length) {
     const box = document.createElement("div");
     box.className = "sources";
     const label = document.createElement("span");
     label.className = "sources-label";
-    label.textContent = "Sources";
+    label.textContent = "Web";
     box.appendChild(label);
     opts.sources.forEach((s) => {
       if (!/^https?:\/\//i.test(s.uri)) return;   // only real web links
@@ -570,6 +616,7 @@ function renderConversation() {
         addBubble("bot", m.text, {
           download: true,
           instant: true,
+          kb: m.kb,
           sources: m.sources,
           searchHtml: m.searchHtml
         });
@@ -840,6 +887,439 @@ mainEl.addEventListener("drop", (e) => {
   if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
 });
 
+// =====================================================================
+// YOUR NOTES (knowledge.md): loading, "meaning search", keyword search
+// =====================================================================
+const KB_CACHE_KEY = "rmibot_kb_v1";
+const MAX_NOTE_CHARS = 1500;   // longer notes are split into parts at blank lines
+
+const kb = {
+  state: "idle",      // idle | loading | missing | empty | ready
+  chunks: [],         // every note (or part of a note): { title, text }
+  noteCount: 0,       // how many "## ..." notes the file has
+  fingerprint: "",    // changes whenever knowledge.md (or the embedding model) changes
+  vectors: null,      // one list of "meaning numbers" per chunk
+  embedding: null,    // a promise while the meaning numbers are being made
+  retryAfter: 0,      // wait a bit before trying again after a failure
+  problem: "",        // short reason why meaning search isn't working
+  loadPromise: null
+};
+
+const STOPWORDS = new Set([
+  "the", "and", "for", "are", "was", "were", "you", "your", "what", "which", "who", "whom",
+  "how", "why", "when", "where", "does", "did", "can", "could", "would", "should", "this",
+  "that", "these", "those", "with", "from", "about", "into", "have", "has", "had", "not",
+  "but", "any", "all", "our", "out", "its", "than", "then", "them", "they", "their", "there",
+  "here", "tell", "give", "please", "need", "want", "explain", "describe", "define"
+]);
+
+// A short code that changes whenever the text changes.
+function fingerprint(str) {
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36) + "-" + str.length;
+}
+
+// Cuts a long note into parts of about maxLen characters, at blank lines.
+function splitLongText(body, maxLen) {
+  if (body.length <= maxLen) return [body];
+
+  const parts = [];
+  let current = "";
+  function pushCurrent() {
+    if (current.trim()) parts.push(current.trim());
+    current = "";
+  }
+
+  body.split(/\n\s*\n/).forEach((raw) => {
+    const paragraph = raw.trim();
+    if (!paragraph) return;
+
+    // One single paragraph that is longer than the limit: cut it at a sentence or space.
+    if (paragraph.length > maxLen) {
+      pushCurrent();
+      let rest = paragraph;
+      while (rest.length > maxLen) {
+        let cut = rest.lastIndexOf(". ", maxLen);
+        if (cut >= maxLen * 0.5) {
+          cut += 1;
+        } else {
+          cut = rest.lastIndexOf(" ", maxLen);
+          if (cut < maxLen * 0.5) cut = maxLen;
+        }
+        parts.push(rest.slice(0, cut).trim());
+        rest = rest.slice(cut).trim();
+      }
+      current = rest;
+      return;
+    }
+
+    if (current && current.length + 2 + paragraph.length > maxLen) pushCurrent();
+    current = current ? current + "\n\n" + paragraph : paragraph;
+  });
+  pushCurrent();
+  return parts;
+}
+
+// Turns the text of knowledge.md into a list of notes.
+// Every note starts with a "## Title" line. Anything above the first one is ignored.
+function parseKnowledge(rawText) {
+  const lines = rawText.replace(/\r\n?/g, "\n").split("\n");
+  const notes = [];
+  let current = null;
+
+  for (const line of lines) {
+    const heading = line.match(/^##\s+(.+?)\s*$/);
+    if (heading) {
+      current = { title: heading[1], lines: [] };
+      notes.push(current);
+    } else if (current) {
+      current.lines.push(line);
+    }
+  }
+
+  const chunks = [];
+  let noteCount = 0;
+  notes.forEach((note) => {
+    const body = note.lines.join("\n").trim();
+    if (!body) return;   // a title with no text under it is skipped
+    noteCount++;
+    const parts = splitLongText(body, MAX_NOTE_CHARS);
+    parts.forEach((part, i) => {
+      const title = parts.length > 1
+        ? note.title + " (part " + (i + 1) + " of " + parts.length + ")"
+        : note.title;
+      chunks.push({ title: title, text: part });
+    });
+  });
+  return { noteCount: noteCount, chunks: chunks };
+}
+
+// ---- Status line under the header ----
+function renderKbStatus() {
+  if (!BOT_CONFIG.useKnowledge) {
+    kbStatusEl.hidden = true;
+    return;
+  }
+  const file = BOT_CONFIG.knowledgeFile || "knowledge.md";
+  let text = "";
+  let level = "";
+
+  if (kb.state === "idle" || kb.state === "loading") {
+    text = "\uD83D\uDCDA Loading your notes\u2026";
+  } else if (kb.state === "missing") {
+    text = "\uD83D\uDCDA Couldn't find " + file + ". Add it to your GitHub repository, in the same folder as index.html.";
+    level = "error";
+  } else if (kb.state === "empty") {
+    text = "\uD83D\uDCDA " + file + " has no notes yet. Start each note with a line like:  ## Note title";
+    level = "warn";
+  } else {
+    let count = kb.noteCount + (kb.noteCount === 1 ? " note" : " notes");
+    if (kb.chunks.length !== kb.noteCount) count += " (" + kb.chunks.length + " parts)";
+
+    let how;
+    if (BOT_CONFIG.searchMethod === "keywords") {
+      how = "keyword search";
+    } else if (kb.vectors && !kb.problem) {
+      how = "meaning search";
+    } else if (kb.embedding) {
+      how = "preparing meaning search\u2026";
+    } else if (!getKey()) {
+      how = "keyword search for now (add your API key for meaning search)";
+    } else {
+      how = "keyword search (meaning search unavailable" + (kb.problem ? ": " + kb.problem : "") + ")";
+      level = "warn";
+    }
+    text = "\uD83D\uDCDA " + count + " loaded \u00B7 " + how;
+  }
+
+  kbStatusEl.textContent = text;
+  kbStatusEl.className = "kb-status" + (level ? " " + level : "");
+  kbStatusEl.hidden = false;
+}
+
+// ---- Loading knowledge.md ----
+async function loadKnowledgeFile() {
+  kb.state = "loading";
+  renderKbStatus();
+
+  const file = BOT_CONFIG.knowledgeFile || "knowledge.md";
+  let text;
+  try {
+    const response = await fetch(file, { cache: "no-cache" });
+    if (!response.ok) throw new Error("status " + response.status);
+    text = await response.text();
+  } catch (e) {
+    kb.state = "missing";
+    kb.chunks = [];
+    kb.vectors = null;
+    renderKbStatus();
+    return false;
+  }
+
+  const parsed = parseKnowledge(text);
+  kb.chunks = parsed.chunks;
+  kb.noteCount = parsed.noteCount;
+  kb.vectors = null;
+  kb.fingerprint = fingerprint(text + "|" + (BOT_CONFIG.embeddingModel || "gemini-embedding-2"));
+
+  if (kb.chunks.length === 0) {
+    kb.state = "empty";
+    renderKbStatus();
+    return false;
+  }
+  kb.state = "ready";
+  return true;
+}
+
+function ensureKnowledgeLoaded() {
+  if (!kb.loadPromise) {
+    kb.loadPromise = loadKnowledgeFile().then((ok) => {
+      if (!ok) kb.loadPromise = null;   // allow trying again later
+      return ok;
+    });
+  }
+  return kb.loadPromise;
+}
+
+// ---- Embeddings (turning text into "meaning numbers") ----
+async function embedTexts(texts, key) {
+  const model = BOT_CONFIG.embeddingModel || "gemini-embedding-2";
+  const url =
+    "https://generativelanguage.googleapis.com/v1beta/models/" +
+    encodeURIComponent(model) +
+    ":batchEmbedContents";
+
+  const all = [];
+  for (let start = 0; start < texts.length; start += 50) {   // at most 50 notes per request
+    const batch = texts.slice(start, start + 50);
+    const body = {
+      requests: batch.map((t) => ({
+        model: "models/" + model,
+        content: { parts: [{ text: t }] }
+      }))
+    };
+
+    let response;
+    try {
+      response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": key
+        },
+        body: JSON.stringify(body)
+      });
+    } catch (e) {
+      throw { kind: "network" };
+    }
+
+    if (!response.ok) {
+      let detail = "";
+      try {
+        const errBody = await response.json();
+        detail = (errBody.error && errBody.error.message) || "";
+      } catch (e) { /* ignore */ }
+      throw { kind: "http", status: response.status, detail: detail };
+    }
+
+    const data = await response.json();
+    const list = data.embeddings || [];
+    if (list.length !== batch.length) throw { kind: "embedding" };
+    list.forEach((item) => all.push(item.values));
+  }
+  return all;
+}
+
+function describeEmbedError(err) {
+  if (err && err.kind === "network") return "no internet connection";
+  if (err && err.kind === "http") {
+    if (err.status === 400 || err.status === 403) return "Google rejected the request, check your API key (error " + err.status + ")";
+    if (err.status === 404) return "check embeddingModel in config.js";
+    if (err.status === 429) return "rate limit, will try again soon";
+    return "Google error " + err.status;
+  }
+  return "unexpected problem";
+}
+
+function roundVector(values) {
+  return values.map((v) => Math.round(v * 1e5) / 1e5);   // shorter numbers = less storage
+}
+
+function loadCachedVectors() {
+  try {
+    const raw = localStorage.getItem(KB_CACHE_KEY);
+    if (!raw) return null;
+    const saved = JSON.parse(raw);
+    if (saved && saved.fp === kb.fingerprint && Array.isArray(saved.vectors) &&
+        saved.vectors.length === kb.chunks.length) {
+      return saved.vectors;
+    }
+  } catch (e) { /* ignore */ }
+  return null;
+}
+
+function saveCachedVectors(vectors) {
+  try {
+    localStorage.setItem(KB_CACHE_KEY, JSON.stringify({ fp: kb.fingerprint, vectors: vectors }));
+  } catch (e) { /* storage full or blocked: it still works, just re-made next visit */ }
+}
+
+// Makes (or loads from storage) the meaning numbers for every note.
+async function prepareEmbeddings(force) {
+  if (BOT_CONFIG.searchMethod === "keywords") return;
+  if (kb.vectors || kb.chunks.length === 0) return;
+  if (kb.embedding) return kb.embedding;
+
+  const key = getKey();
+  if (!key) return;                                  // wait until an API key is saved
+  if (!force && Date.now() < kb.retryAfter) return;  // recently failed: wait a little
+
+  kb.embedding = (async () => {
+    const cached = loadCachedVectors();
+    if (cached) {
+      kb.vectors = cached;
+      kb.problem = "";
+      return;
+    }
+    try {
+      const texts = kb.chunks.map((c) => "title: " + c.title + " | text: " + c.text);
+      const vectors = await embedTexts(texts, key);
+      kb.vectors = vectors.map(roundVector);
+      kb.problem = "";
+      kb.retryAfter = 0;
+      saveCachedVectors(kb.vectors);
+    } catch (err) {
+      kb.vectors = null;
+      kb.problem = describeEmbedError(err);
+      kb.retryAfter = Date.now() + 60000;
+    }
+  })().finally(() => {
+    kb.embedding = null;
+    renderKbStatus();
+  });
+
+  renderKbStatus();   // shows "preparing meaning search..."
+  return kb.embedding;
+}
+
+// Called when the page opens and when an API key is saved.
+async function initKnowledge(force) {
+  if (!BOT_CONFIG.useKnowledge) {
+    renderKbStatus();
+    return;
+  }
+  const loaded = await ensureKnowledgeLoaded();
+  if (loaded) await prepareEmbeddings(force);
+  renderKbStatus();
+}
+
+// ---- Searching ----
+function cosine(a, b) {
+  let dot = 0, na = 0, nb = 0;
+  const n = Math.min(a.length, b.length);
+  for (let i = 0; i < n; i++) {
+    dot += a[i] * b[i];
+    na += a[i] * a[i];
+    nb += b[i] * b[i];
+  }
+  return na && nb ? dot / Math.sqrt(na * nb) : 0;
+}
+
+// Simple keyword search: the more of your question's words a note contains
+// (and the more they appear in its title), the higher its score (0 to 1).
+function keywordScores(question) {
+  const words = question.toLowerCase().match(/[\p{L}\p{N}]+/gu) || [];
+  const terms = [...new Set(words.filter((w) => w.length >= 3 && !STOPWORDS.has(w)))];
+  if (!terms.length) return [];
+
+  return kb.chunks.map((chunk) => {
+    const title = chunk.title.toLowerCase();
+    const text = chunk.text.toLowerCase();
+    let total = 0;
+
+    terms.forEach((term) => {
+      const pattern = "(?:^|[^\\p{L}\\p{N}])" + escapeRegExp(term);
+      const inTitle = new RegExp(pattern, "u").test(title);
+      const count = (text.match(new RegExp(pattern, "gu")) || []).length;
+      total += (inTitle ? 0.5 : 0) + 0.5 * Math.min(count, 3) / 3;
+    });
+    return { chunk: chunk, score: total / terms.length };
+  });
+}
+
+// Finds the best notes for a question. Returns null if notes aren't in use.
+async function retrieveNotes(question) {
+  if (!BOT_CONFIG.useKnowledge) return null;
+  await ensureKnowledgeLoaded();
+  if (kb.chunks.length === 0) return null;
+
+  const topK = Math.max(1, Number(BOT_CONFIG.topK) || 3);
+  let method = BOT_CONFIG.searchMethod === "keywords" ? "keywords" : "meaning";
+  let scored = null;
+
+  if (method === "meaning") {
+    try {
+      await prepareEmbeddings(false);
+      if (!kb.vectors) throw { kind: "unavailable" };
+      const queryVectors = await embedTexts(["task: search result | query: " + question], getKey());
+      const q = queryVectors[0];
+      scored = kb.chunks.map((chunk, i) => ({ chunk: chunk, score: cosine(q, kb.vectors[i]) }));
+      if (kb.problem) {
+        kb.problem = "";
+        renderKbStatus();
+      }
+    } catch (err) {
+      // Meaning search didn't work: switch to keyword search automatically.
+      scored = null;
+      if (kb.vectors) {
+        kb.problem = describeEmbedError(err);
+        renderKbStatus();
+      }
+    }
+  }
+
+  if (!scored) {
+    method = "keywords";
+    scored = keywordScores(question);
+  }
+
+  const picked = scored
+    .filter((s) => method === "meaning" || s.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, topK)
+    .map((s) => ({ title: s.chunk.title, text: s.chunk.text, score: s.score }));
+
+  return { method: method, notes: picked };
+}
+
+// The text that goes to Gemini: numbered notes [1] [2] [3].
+function notesBlock(retrieval) {
+  if (!retrieval.notes.length) {
+    return "NOTES from my knowledge file:\n(No matching notes were found.)";
+  }
+  return "NOTES from my knowledge file:\n\n" +
+    retrieval.notes.map((n, i) => "[" + (i + 1) + "] " + n.title + "\n" + n.text).join("\n\n");
+}
+
+// A small summary saved with the reply, so "Sources" can be shown later.
+function summarizeRetrieval(retrieval) {
+  return {
+    method: retrieval.method,
+    notes: retrieval.notes.map((n) => ({
+      title: n.title,
+      score: Math.round(n.score * 1000) / 1000,
+      preview: n.text.length > 220 ? n.text.slice(0, 220).trim() + "\u2026" : n.text
+    }))
+  };
+}
+
 // ---------- Talking to Gemini ----------
 
 // Pauses for a number of milliseconds (used between retries).
@@ -847,13 +1327,17 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// The bot's rules from config.js, plus the list of useful websites.
-function buildSystemText() {
+// The bot's rules from config.js, plus the list of useful websites,
+// plus the notes rules when notes are being sent with this question.
+function buildSystemText(withKnowledge) {
   let text = BOT_CONFIG.systemInstructions;
   const sites = BOT_CONFIG.usefulWebsites || [];
   if (sites.length && BOT_CONFIG.enableUrlReading !== false) {
     text += "\n\nUseful websites you can read when relevant:\n" +
       sites.map((s) => "- " + s.name + ": " + s.url).join("\n");
+  }
+  if (withKnowledge && BOT_CONFIG.knowledgeRules) {
+    text += "\n\n" + BOT_CONFIG.knowledgeRules;
   }
   return text;
 }
@@ -879,10 +1363,14 @@ function websiteHints(text) {
 
 // Turns a saved chat into the "contents" list Gemini expects,
 // loading any attached files from the browser's file storage.
-async function buildContents(chat) {
+// If notes were found for the latest question, they are added to that one
+// message only. The saved chat keeps just your plain question.
+async function buildContents(chat, retrieval) {
   const contents = [];
+  const lastIndex = chat.messages.length - 1;
 
-  for (const m of chat.messages) {
+  for (let index = 0; index < chat.messages.length; index++) {
+    const m = chat.messages[index];
     const role = m.role === "user" ? "user" : "model";
     const parts = [];
 
@@ -897,7 +1385,13 @@ async function buildContents(chat) {
         parts.push({ inlineData: { mimeType: rec.mime, data: rec.data } });
       }
     }
-    parts.push({ text: m.text });
+
+    if (retrieval && index === lastIndex && m.role === "user") {
+      parts.push({ text: notesBlock(retrieval) });
+      parts.push({ text: "QUESTION: " + m.text });
+    } else {
+      parts.push({ text: m.text });
+    }
 
     // Gemini likes alternating turns, so merge two messages from the same side.
     const last = contents[contents.length - 1];
@@ -906,7 +1400,7 @@ async function buildContents(chat) {
   }
 
   // Point the bot to a site from config.js if the latest message mentions it.
-  const lastMsg = chat.messages[chat.messages.length - 1];
+  const lastMsg = chat.messages[lastIndex];
   const lastContent = contents[contents.length - 1];
   if (BOT_CONFIG.enableUrlReading !== false && lastMsg && lastMsg.role === "user" && lastContent) {
     websiteHints(lastMsg.text).forEach((site) => {
@@ -946,17 +1440,18 @@ function collectSources(candidate) {
 }
 
 // Sends ONE request to ONE model. Throws an error if it fails.
-async function callModel(model, key, contents, useTools) {
+// opts.tools = use the web tools, opts.knowledge = add the notes rules.
+async function callModel(model, key, contents, opts) {
   const url =
     "https://generativelanguage.googleapis.com/v1beta/models/" +
     encodeURIComponent(model) +
     ":generateContent";
 
   const body = {
-    systemInstruction: { parts: [{ text: buildSystemText() }] },
+    systemInstruction: { parts: [{ text: buildSystemText(opts.knowledge) }] },
     contents: contents
   };
-  const tools = useTools ? buildTools() : [];
+  const tools = opts.tools ? buildTools() : [];
   if (tools.length) body.tools = tools;
 
   let response;
@@ -1007,7 +1502,7 @@ async function callModel(model, key, contents, useTools) {
 
 // Tries the main model up to 3 times if Google is having a temporary
 // problem (error 500 or higher), then tries the backup model.
-async function askWithModels(key, contents, useTools) {
+async function askWithModels(key, contents, opts) {
   const models = [BOT_CONFIG.model];
   if (BOT_CONFIG.fallbackModel && BOT_CONFIG.fallbackModel !== BOT_CONFIG.model) {
     models.push(BOT_CONFIG.fallbackModel);
@@ -1018,7 +1513,7 @@ async function askWithModels(key, contents, useTools) {
   for (const model of models) {
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        return await callModel(model, key, contents, useTools);
+        return await callModel(model, key, contents, opts);
       } catch (err) {
         if (!firstError) firstError = err;
 
@@ -1037,16 +1532,16 @@ async function askWithModels(key, contents, useTools) {
 
 // Asks with the web tools on. If Google rejects the request (error 400, not a
 // key problem), try once more without the web tools so you still get an answer.
-async function askGemini(key, contents) {
+async function askGemini(key, contents, withKnowledge) {
   try {
-    return await askWithModels(key, contents, true);
+    return await askWithModels(key, contents, { tools: true, knowledge: withKnowledge });
   } catch (err) {
     const toolsOn = buildTools().length > 0;
     const maybeToolProblem =
       err && err.kind === "http" && err.status === 400 && !/api key/i.test(err.detail || "");
     if (toolsOn && maybeToolProblem) {
       try {
-        return await askWithModels(key, contents, false);
+        return await askWithModels(key, contents, { tools: false, knowledge: withKnowledge });
       } catch (e) {
         throw err;
       }
@@ -1108,13 +1603,25 @@ async function requestReply(chat) {
   }
 
   try {
-    const contents = await buildContents(chat);
-    const result = await askGemini(getKey(), contents);
+    // 1) Find the best notes for this question (if notes are turned on).
+    const lastMsg = chat.messages[chat.messages.length - 1];
+    let retrieval = null;
+    try {
+      retrieval = await retrieveNotes(lastMsg.text);
+    } catch (e) {
+      retrieval = null;   // never let a notes problem stop the answer
+    }
+
+    // 2) Ask Gemini, with the notes attached to this one question.
+    const contents = await buildContents(chat, retrieval);
+    const result = await askGemini(getKey(), contents, !!retrieval);
 
     if (!state.chats.includes(chat)) return;   // the chat was deleted meanwhile
+    const kbSummary = retrieval ? summarizeRetrieval(retrieval) : null;
     chat.messages.push({
       role: "bot",
       text: result.text,
+      kb: kbSummary,
       sources: result.sources,
       searchHtml: result.searchHtml
     });
@@ -1126,6 +1633,7 @@ async function requestReply(chat) {
       hideTyping();
       addBubble("bot", result.text, {
         download: true,
+        kb: kbSummary,
         sources: result.sources,
         searchHtml: result.searchHtml
       });
@@ -1226,3 +1734,4 @@ renderChatList();
 renderConversation();
 renderChips();
 updateSendState();
+initKnowledge(false);   // load knowledge.md and get "meaning search" ready
