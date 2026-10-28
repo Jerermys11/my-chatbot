@@ -1441,6 +1441,8 @@ function collectSources(candidate) {
 
 // Sends ONE request to ONE model. Throws an error if it fails.
 // opts.tools = use the web tools, opts.knowledge = add the notes rules.
+// Sends ONE request to ONE model. Throws an error if it fails.
+// opts.tools = use the web tools, opts.knowledge = add the notes rules.
 async function callModel(model, key, contents, opts) {
   const url =
     "https://generativelanguage.googleapis.com/v1beta/models/" +
@@ -1470,11 +1472,26 @@ async function callModel(model, key, contents, opts) {
 
   if (!response.ok) {
     let detail = "";
+    let retrySeconds = 0;
+    const quotaIds = [];
     try {
       const errBody = await response.json();
-      detail = (errBody.error && errBody.error.message) || "";
+      const error = errBody.error || {};
+      detail = error.message || "";
+      // Google's error can say how long to wait and which limit was hit.
+      (error.details || []).forEach((d) => {
+        if (d.retryDelay) retrySeconds = Math.ceil(parseFloat(d.retryDelay)) || 0;
+        (d.violations || []).forEach((v) => { if (v.quotaId) quotaIds.push(v.quotaId); });
+      });
     } catch (e) { /* ignore */ }
-    throw { kind: "http", status: response.status, detail: detail };
+    throw {
+      kind: "http",
+      status: response.status,
+      detail: detail,
+      retrySeconds: retrySeconds,
+      quota: quotaIds.join(" "),
+      model: model
+    };
   }
 
   const data = await response.json();
@@ -1500,8 +1517,9 @@ async function callModel(model, key, contents, opts) {
   };
 }
 
-// Tries the main model up to 3 times if Google is having a temporary
-// problem (error 500 or higher), then tries the backup model.
+// Tries the main model (up to 3 times if Google is having a temporary problem,
+// error 500 or higher), then the backup model. If a model is out of quota
+// (error 429), it moves straight to the backup model, which has its own limit.
 async function askWithModels(key, contents, opts) {
   const models = [BOT_CONFIG.model];
   if (BOT_CONFIG.fallbackModel && BOT_CONFIG.fallbackModel !== BOT_CONFIG.model) {
@@ -1517,8 +1535,10 @@ async function askWithModels(key, contents, opts) {
       } catch (err) {
         if (!firstError) firstError = err;
 
-        const temporary = err && err.kind === "http" && err.status >= 500;
-        if (!temporary) {
+        const status = err && err.kind === "http" ? err.status : 0;
+        if (status === 429) break;   // out of quota: try the backup model right away
+
+        if (status < 500) {
           // Not a temporary problem (bad key, wrong model name, no internet...).
           // Retrying won't help, so report the ORIGINAL problem right away.
           throw firstError;
@@ -1531,15 +1551,16 @@ async function askWithModels(key, contents, opts) {
 }
 
 // Asks with the web tools on. If Google rejects the request (error 400, not a
-// key problem), try once more without the web tools so you still get an answer.
+// key problem) or says you're out of quota (429), try once more without the web
+// tools, because they can be the part that is limited or unsupported.
 async function askGemini(key, contents, withKnowledge) {
   try {
     return await askWithModels(key, contents, { tools: true, knowledge: withKnowledge });
   } catch (err) {
     const toolsOn = buildTools().length > 0;
-    const maybeToolProblem =
-      err && err.kind === "http" && err.status === 400 && !/api key/i.test(err.detail || "");
-    if (toolsOn && maybeToolProblem) {
+    const status = err && err.kind === "http" ? err.status : 0;
+    const maybeToolProblem = status === 400 && !/api key/i.test(err.detail || "");
+    if (toolsOn && (maybeToolProblem || status === 429)) {
       try {
         return await askWithModels(key, contents, { tools: false, knowledge: withKnowledge });
       } catch (e) {
@@ -1575,7 +1596,12 @@ function friendlyError(err) {
       return "Your attached files are too large for one request. Start a new chat with smaller files.";
     }
     if (s === 429) {
-      return "Too many requests right now (rate limit). Wait a minute and try again.";
+      const modelNote = err.model ? " (" + err.model + ")" : "";
+      const delayNote = err.retrySeconds ? " Google says to wait about " + err.retrySeconds + " seconds." : "";
+      if (/PerDay/i.test(err.quota || "")) {
+        return "Your free daily limit" + modelNote + " is used up, and so is the backup model's. Google resets daily limits at midnight Pacific time. You can see your limits at ai.dev/usage?tab=rate-limit.";
+      }
+      return "Too many requests in a short time (rate limit)." + delayNote + " Try again in a moment. You can see your limits at ai.dev/usage?tab=rate-limit.";
     }
     if (s >= 500) {
       return "Google's server is busy or having problems (error " + s + "). I tried a few times. Please try again in a minute.";
