@@ -1738,6 +1738,7 @@ async function sendMessage(rawText) {
 function autoGrow() {
   inputEl.style.height = "auto";
   inputEl.style.height = Math.min(inputEl.scrollHeight, 140) + "px";
+  inputEl.style.overflowY = inputEl.scrollHeight > 140 ? "auto" : "hidden";
 }
 
 inputEl.addEventListener("input", autoGrow);
