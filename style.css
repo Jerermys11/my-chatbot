@@ -757,3 +757,9 @@ body {
   }
   .sidebar.open { transform: none; box-shadow: 0 0 40px rgba(0, 0, 0, 0.5); }
 }
+/* Hide the message box's scrollbar until it is really needed */
+.composer textarea {
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
