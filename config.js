@@ -111,7 +111,7 @@ When web tools are available and the student asks about current information or p
   //   "meaning"  = finds notes with a similar MEANING to the question
   //                (needs your API key; falls back to keywords if it fails)
   //   "keywords" = finds notes that share WORDS with the question
-  searchMethod: "meaning",
+  searchMethod: "keywords",
 
   // How many notes to hand to the bot with each question (try 2 to 5).
   topK: 3,
