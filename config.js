@@ -79,8 +79,9 @@ When web tools are available and the student asks about current information or p
     "Here are my study materials. Summarize the key topics in a few bullets, then quiz me on one of them.",
 
   // ---- Web access ----
-  enableUrlReading: false,
-enableGoogleSearch: false,
+  enableUrlReading: true,     // lets the bot read web pages (links you paste, or the sites below)
+  enableGoogleSearch: true,   // lets the bot search Google for current information
+
   // Sites the bot should read when your message mentions one of the keywords.
   // To add a site, copy the whole { ... }, line and change the text.
   usefulWebsites: [
@@ -100,11 +101,24 @@ enableGoogleSearch: false,
 
   // true = the bot looks through your notes file before answering.
   // false = turn this feature off completely.
-useKnowledge: true,
-knowledgeFile: "knowledge.md",
-searchMethod: "keywords",
-topK: 2,
-embeddingModel: "gemini-embedding-2",
+  useKnowledge: true,
+
+  // The name of your notes file. It must sit next to index.html.
+  // Start every note with a line like:  ## Note title
+  knowledgeFile: "knowledge.md",
+
+  // How the bot finds the right notes:
+  //   "meaning"  = finds notes with a similar MEANING to the question
+  //                (needs your API key; falls back to keywords if it fails)
+  //   "keywords" = finds notes that share WORDS with the question
+  searchMethod: "keywords",
+
+  // How many notes to hand to the bot with each question (try 2 to 5).
+  topK: 3,
+
+  // The Google model that turns notes and questions into "meaning numbers".
+  // If you change this, your notes are re-processed automatically.
+  embeddingModel: "gemini-embedding-2",
 
   // Extra rules added to the bot's instructions whenever it receives notes.
    knowledgeRules:
